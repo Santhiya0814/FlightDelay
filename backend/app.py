@@ -15,6 +15,7 @@ app = Flask(
     static_folder=os.path.join(os.path.dirname(__file__), "..", "frontend", "static"),
 )
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "fallback-secret-key")
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
 init_db(app)
 
 # ── ML bundle ────────────────────────────────────────────────────────────────
