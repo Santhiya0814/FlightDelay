@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Model Performance{% endblock %}
+
+{% block content %}
+<div class="page-hero">
+  <div class="hero-content">
+    <div class="hero-icon"><i class="fas fa-chart-bar"></i></div>
+    <h1>Analytics Dashboard</h1>
+    <p>Model performance metrics &amp; prediction history</p>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- Stats Row -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-icon"><i class="fas fa-plane"></i></div>
+      <div class="stat-info">
+        <div class="stat-value">{{ total }}</div>
+        <div class="stat-label">Total Predictions</div>
+      </div>
+    </div>
+    <div class="stat-card stat-delayed">
+      <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+      <div class="stat-info">
+        <div class="stat-value">{{ delayed }}</div>
+        <div class="stat-label">Delayed Flights</div>
+      </div>
+    </div>
+    <div class="stat-card stat-ontime">
+      <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+      <div class="stat-info">
+        <div class="stat-value">{{ on_time }}</div>
+        <div class="stat-label">On Time Flights</div>
+      </div>
+    </div>
+    <div class="stat-card stat-best">
+      <div class="stat-icon"><i class="fas fa-trophy"></i></div>
+      <div class="stat-info">
+        <div class="stat-value best-model-name">{{ accuracies.best_model }}</div>
+        <div class="stat-label">Best Model</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Model Performance Cards -->
+  <div class="section-title">
+    <h2><i class="fas fa-brain"></i> Model Performance</h2>
+  </div>
+
+  <div class="model-cards">
+    {% set model_list = ["KNN", "Naive Bayes", "SVM", "Logistic Regression", "Random Forest"] %}
+    {% for model in model_list %}
+    <div class="model-perf-card {% if model == accuracies.best_model %}best-card{% endif %}">
+      {% if model == accuracies.best_model %}
+      <div class="best-badge"><i class="fas fa-star"></i> Best</div>
+      {% endif %}
+      <div class="model-perf-name">{{ model }}</div>
+      <div class="model-metrics">
+        <div class="metric">
+          <span class="metric-label">Accuracy</span>
+          <div class="metric-bar-wrap">
+            <div class="metric-bar" style="width: {{ (accuracies.accuracies[model] * 100) | round(1) }}%"></div>
+          </div>
+          <span class="metric-val">{{ (accuracies.accuracies[model] * 100) | round(1) }}%</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Precision</span>
+          <div class="metric-bar-wrap">
+            <div class="metric-bar metric-bar-2" style="width: {{ (accuracies.precision[model] * 100) | round(1) }}%"></div>
+          </div>
+          <span class="metric-val">{{ (accuracies.precision[model] * 100) | round(1) }}%</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Recall</span>
+          <div class="metric-bar-wrap">
+            <div class="metric-bar metric-bar-3" style="width: {{ (accuracies.recall[model] * 100) | round(1) }}%"></div>
+          </div>
+          <span class="metric-val">{{ (accuracies.recall[model] * 100) | round(1) }}%</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">F1-Score</span>
+          <div class="metric-bar-wrap">
+            <div class="metric-bar metric-bar-4" style="width: {{ (accuracies.f1_score[model] * 100) | round(1) }}%"></div>
+          </div>
+          <span class="metric-val">{{ (accuracies.f1_score[model] * 100) | round(1) }}%</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">CV Score</span>
+          <div class="metric-bar-wrap">
+            <div class="metric-bar metric-bar-5" style="width: {{ (accuracies.cv_scores[model] * 100) | round(1) }}%"></div>
+          </div>
+          <span class="metric-val">{{ (accuracies.cv_scores[model] * 100) | round(1) }}%</span>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Chart -->
+  <div class="section-title">
+    <h2><i class="fas fa-chart-bar"></i> Accuracy Comparison</h2>
+  </div>
+  <div class="chart-card">
+    <canvas id="accuracyChart"></canvas>
+  </div>
+
+  <!-- Prediction History -->
+  <div class="section-title">
+    <h2><i class="fas fa-history"></i> Recent Predictions</h2>
+  </div>
+
+  {% if recent_predictions %}
+  <div class="table-card">
+    <table class="pred-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Airline</th>
+          <th>Route</th>
+          <th>Distance</th>
+          <th>Weather</th>
+          <th>Model</th>
+          <th>Result</th>
+          <th>Confidence</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in recent_predictions %}
+        <tr>
+          <td>{{ p.id }}</td>
+          <td>{{ p.airline }}</td>
+          <td>{{ p.source }} &rarr; {{ p.destination }}</td>
+          <td>{{ p.distance }} km</td>
+          <td>{{ p.weather_condition }}</td>
+          <td><span class="tag-model">{{ p.model_used }}</span></td>
+          <td>
+            <span class="tag-result {% if p.prediction == 'Delayed' %}tag-delayed{% else %}tag-ontime{% endif %}">
+              {{ p.prediction }}
+            </span>
+          </td>
+          <td>{{ p.confidence }}%</td>
+          <td>{{ p.created_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <i class="fas fa-inbox"></i>
+    <p>No predictions yet. <a href="/">Make your first prediction!</a></p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const labels  = {{ accuracies.accuracies.keys()  | list | tojson }};
+  const accData = {{ accuracies.accuracies.values() | list | tojson }}.map(v => (v * 100).toFixed(1));
+  const cvData  = {{ accuracies.cv_scores.values()  | list | tojson }}.map(v => (v * 100).toFixed(1));
+
+  new Chart(document.getElementById("accuracyChart").getContext("2d"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        { label: "Accuracy (%)", data: accData,
+          backgroundColor: "rgba(149,117,205,0.8)", borderColor: "#7c4dff",
+          borderWidth: 2, borderRadius: 8 },
+        { label: "CV Score (%)", data: cvData,
+          backgroundColor: "rgba(206,147,216,0.7)", borderColor: "#ce93d8",
+          borderWidth: 2, borderRadius: 8 },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: "#4a3f6b", font: { family: "Inter", size: 13 } } } },
+      scales: {
+        y: { beginAtZero: false, min: 50, max: 100,
+             ticks: { color: "#6b5b95", callback: v => v + "%" },
+             grid:  { color: "rgba(149,117,205,0.15)" } },
+        x: { ticks: { color: "#6b5b95" }, grid: { display: false } },
+      },
+    },
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,38 @@
+{
+  "accuracies": {
+    "KNN": 0.5375,
+    "Naive Bayes": 0.6025,
+    "SVM": 0.5758,
+    "Logistic Regression": 0.6067,
+    "Random Forest": 0.5575
+  },
+  "precision": {
+    "KNN": 0.4767,
+    "Naive Bayes": 0.556,
+    "SVM": 0.5218,
+    "Logistic Regression": 0.5538,
+    "Random Forest": 0.5031
+  },
+  "recall": {
+    "KNN": 0.4026,
+    "Naive Bayes": 0.53,
+    "SVM": 0.5599,
+    "Logistic Regression": 0.5974,
+    "Random Forest": 0.4588
+  },
+  "f1_score": {
+    "KNN": 0.4365,
+    "Naive Bayes": 0.5427,
+    "SVM": 0.5402,
+    "Logistic Regression": 0.5748,
+    "Random Forest": 0.4799
+  },
+  "cv_scores": {
+    "KNN": 0.5587,
+    "Naive Bayes": 0.6097,
+    "SVM": 0.5785,
+    "Logistic Regression": 0.6015,
+    "Random Forest": 0.5667
+  },
+  "best_model": "Logistic Regression"
+}

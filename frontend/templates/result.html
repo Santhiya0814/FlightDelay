@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+{% block title %}Prediction Result — All 5 Models{% endblock %}
+
+{% block content %}
+{% set final      = data.final_prediction %}
+{% set is_delayed = (final == "Delayed") %}
+{% set icons = {
+  "KNN":                 "fas fa-project-diagram",
+  "Naive Bayes":         "fas fa-calculator",
+  "SVM":                 "fas fa-vector-square",
+  "Logistic Regression": "fas fa-chart-line",
+  "Random Forest":       "fas fa-tree"
+} %}
+
+<!-- ═══════════════════════════════════════════
+     RESULT HERO BANNER
+════════════════════════════════════════════ -->
+<div class="res-hero {% if is_delayed %}res-hero-delayed{% else %}res-hero-ontime{% endif %}">
+  <div class="res-hero-bg-circles">
+    <span class="rh-circle rh-c1"></span>
+    <span class="rh-circle rh-c2"></span>
+    <span class="rh-circle rh-c3"></span>
+  </div>
+  <div class="res-hero-inner">
+    <div class="res-hero-badge">
+      {% if is_delayed %}
+        <i class="fas fa-exclamation-triangle"></i>
+      {% else %}
+        <i class="fas fa-check-circle"></i>
+      {% endif %}
+    </div>
+    <div class="res-hero-text">
+      <p class="res-hero-label">Final Prediction</p>
+      <h1 class="res-hero-title">{{ final }}</h1>
+      <p class="res-hero-sub">
+        <i class="fas fa-crown"></i> Best Model: <strong>{{ data.best_model }}</strong>
+        &nbsp;|&nbsp;
+        <i class="fas fa-vote-yea"></i> Vote: <strong>{{ data.delayed_votes }}-{{ data.ontime_votes }}</strong>
+        &nbsp;|&nbsp;
+        <i class="fas fa-bullseye"></i> Top Accuracy: <strong>{{ data.best_accuracy }}%</strong>
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ═══════════════════════════════════════════
+       FLIGHT INFO STRIP
+  ════════════════════════════════════════════ -->
+  <div class="flt-strip">
+    <div class="flt-cell">
+      <span class="flt-cell-label"><i class="fas fa-building"></i> Airline</span>
+      <span class="flt-cell-val">{{ airline }}</span>
+    </div>
+    <div class="flt-divider"></div>
+    <div class="flt-route">
+      <div class="flt-city">
+        <i class="fas fa-map-marker-alt"></i>
+        <span>{{ source }}</span>
+      </div>
+      <div class="flt-route-line">
+        <span class="flt-dot"></span>
+        <span class="flt-line"></span>
+        <i class="fas fa-plane flt-plane-icon"></i>
+        <span class="flt-line"></span>
+        <span class="flt-dot"></span>
+      </div>
+      <div class="flt-city">
+        <i class="fas fa-map-pin"></i>
+        <span>{{ destination }}</span>
+      </div>
+    </div>
+    <div class="flt-divider"></div>
+    <div class="flt-cell">
+      <span class="flt-cell-label"><i class="fas fa-ruler-horizontal"></i> Distance</span>
+      <span class="flt-cell-val">{{ distance }} km</span>
+    </div>
+    <div class="flt-divider"></div>
+    <div class="flt-cell">
+      <span class="flt-cell-label"><i class="fas fa-clock"></i> Departure</span>
+      <span class="flt-cell-val">{{ departure_time }}</span>
+    </div>
+    <div class="flt-divider"></div>
+    <div class="flt-cell">
+      <span class="flt-cell-label"><i class="fas fa-cloud-sun"></i> Weather</span>
+      <span class="flt-cell-val">{{ weather_condition }}</span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       VOTE METER
+  ════════════════════════════════════════════ -->
+  <div class="vote-meter-wrap">
+    <div class="vote-meter-card">
+      <div class="vm-side vm-delayed">
+        <div class="vm-count">{{ data.delayed_votes }}</div>
+        <div class="vm-label"><i class="fas fa-exclamation-triangle"></i> Delayed</div>
+      </div>
+      <div class="vm-bar-section">
+        <div class="vm-bar-track">
+          <div class="vm-bar-fill vm-fill-delayed"
+               style="width:{{ (data.delayed_votes / 5 * 100)|int }}%"></div>
+          <div class="vm-bar-fill vm-fill-ontime"
+               style="width:{{ (data.ontime_votes / 5 * 100)|int }}%"></div>
+        </div>
+        <div class="vm-bar-labels">
+          <span>Majority Vote — {{ data.delayed_votes }} vs {{ data.ontime_votes }}</span>
+        </div>
+      </div>
+      <div class="vm-side vm-ontime">
+        <div class="vm-count">{{ data.ontime_votes }}</div>
+        <div class="vm-label"><i class="fas fa-check-circle"></i> On Time</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       ALL 5 MODEL PREDICTION CARDS
+  ════════════════════════════════════════════ -->
+  <div class="section-title">
+    <h2><i class="fas fa-brain"></i> All 5 Model Predictions</h2>
+    <span class="section-badge">Ensemble Analysis</span>
+  </div>
+
+  <div class="model-grid">
+    {% for name, res in data.results.items() %}
+    {% set is_best    = (name == data.best_model) %}
+    {% set is_del     = (res.prediction == "Delayed") %}
+    <div class="mc {% if is_best %}mc-best{% endif %} {% if is_del %}mc-pred-delayed{% else %}mc-pred-ontime{% endif %}">
+
+      {% if is_best %}
+      <div class="mc-crown-ribbon">
+        <i class="fas fa-crown"></i> Best Model
+      </div>
+      {% endif %}
+
+      <!-- Top accent bar -->
+      <div class="mc-accent-bar"></div>
+
+      <!-- Header -->
+      <div class="mc-head">
+        <div class="mc-icon-wrap {% if is_best %}mc-icon-best{% endif %}">
+          <i class="{{ icons[name] }}"></i>
+        </div>
+        <div class="mc-title-wrap">
+          <div class="mc-name">{{ name }}</div>
+          <div class="mc-acc-pill">{{ res.accuracy }}% accuracy</div>
+        </div>
+      </div>
+
+      <!-- Prediction badge -->
+      <div class="mc-pred-badge {% if is_del %}mc-badge-delayed{% else %}mc-badge-ontime{% endif %}">
+        {% if is_del %}
+          <i class="fas fa-exclamation-triangle"></i> DELAYED
+        {% else %}
+          <i class="fas fa-check-circle"></i> ON TIME
+        {% endif %}
+      </div>
+
+      <!-- Accuracy bar -->
+      <div class="mc-bar-row">
+        <span class="mc-bar-label">Accuracy</span>
+        <div class="mc-bar-track">
+          <div class="mc-bar-fill {% if is_best %}mc-bar-gold{% endif %}"
+               data-width="{{ res.accuracy }}"></div>
+        </div>
+        <span class="mc-bar-val">{{ res.accuracy }}%</span>
+      </div>
+
+      <!-- Confidence bar -->
+      {% if res.confidence %}
+      <div class="mc-bar-row">
+        <span class="mc-bar-label">Confidence</span>
+        <div class="mc-bar-track">
+          <div class="mc-bar-fill mc-bar-conf"
+               data-width="{{ res.confidence }}"></div>
+        </div>
+        <span class="mc-bar-val">{{ res.confidence }}%</span>
+      </div>
+      {% endif %}
+
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       COMPARISON TABLE
+  ════════════════════════════════════════════ -->
+  <div class="section-title" style="margin-top:48px;">
+    <h2><i class="fas fa-table"></i> Model Comparison Table</h2>
+    <span class="section-badge">Side by Side</span>
+  </div>
+
+  <div class="cmp-table-wrap">
+    <table class="cmp-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Model</th>
+          <th>Prediction</th>
+          <th>Accuracy</th>
+          <th>Confidence</th>
+          <th>Rank</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set sorted_models = data.results.items() | list | sort(attribute='1.accuracy', reverse=True) %}
+        {% for name, res in sorted_models %}
+        {% set rank = loop.index %}
+        <tr class="{% if name == data.best_model %}cmp-best-row{% endif %}">
+          <td class="cmp-rank-cell">
+            {% if rank == 1 %}<span class="rank-gold">1st</span>
+            {% elif rank == 2 %}<span class="rank-silver">2nd</span>
+            {% elif rank == 3 %}<span class="rank-bronze">3rd</span>
+            {% else %}<span class="rank-plain">{{ rank }}th</span>{% endif %}
+          </td>
+          <td>
+            <div class="cmp-model-cell">
+              <div class="cmp-model-icon"><i class="{{ icons[name] }}"></i></div>
+              <span class="cmp-model-name">
+                {% if name == data.best_model %}
+                <i class="fas fa-crown" style="color:#f59e0b;font-size:0.75rem;margin-right:4px;"></i>
+                {% endif %}
+                {{ name }}
+              </span>
+            </div>
+          </td>
+          <td>
+            <span class="cmp-pred {% if res.prediction == 'Delayed' %}cmp-delayed{% else %}cmp-ontime{% endif %}">
+              {% if res.prediction == 'Delayed' %}
+                <i class="fas fa-exclamation-triangle"></i> Delayed
+              {% else %}
+                <i class="fas fa-check-circle"></i> On Time
+              {% endif %}
+            </span>
+          </td>
+          <td>
+            <div class="cmp-acc-cell">
+              <div class="cmp-acc-track">
+                <div class="cmp-acc-fill {% if name == data.best_model %}cmp-acc-best{% endif %}"
+                     data-width="{{ res.accuracy }}"></div>
+              </div>
+              <span class="cmp-acc-num">{{ res.accuracy }}%</span>
+            </div>
+          </td>
+          <td class="cmp-conf-cell">{{ res.confidence ~ "%" if res.confidence else "—" }}</td>
+          <td>
+            {% if name == data.best_model %}
+            <span class="cmp-status-best"><i class="fas fa-star"></i> Best</span>
+            {% else %}
+            <span class="cmp-status-plain">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       FINAL VERDICT BOX
+  ════════════════════════════════════════════ -->
+  <div class="verdict-box {% if is_delayed %}verdict-delayed{% else %}verdict-ontime{% endif %}">
+    <div class="verdict-glow"></div>
+    <div class="verdict-content">
+      <div class="verdict-left-col">
+        <div class="verdict-eyebrow">
+          <i class="fas fa-robot"></i> Ensemble ML Result
+        </div>
+        <div class="verdict-main-label">Final Prediction</div>
+        <div class="verdict-main-result">
+          {% if is_delayed %}
+            <i class="fas fa-exclamation-triangle"></i> DELAYED
+          {% else %}
+            <i class="fas fa-check-circle"></i> ON TIME
+          {% endif %}
+        </div>
+        <div class="verdict-reasoning">
+          <div class="vr-item">
+            <i class="fas fa-crown"></i>
+            <span>Best Model: <strong>{{ data.best_model }}</strong> ({{ data.best_accuracy }}%)</span>
+          </div>
+          <div class="vr-item">
+            <i class="fas fa-vote-yea"></i>
+            <span>Majority Vote: <strong>{{ data.delayed_votes }} Delayed</strong> vs <strong>{{ data.ontime_votes }} On Time</strong></span>
+          </div>
+          <div class="vr-item">
+            <i class="fas fa-info-circle"></i>
+            <span>Method: <strong>Best Model Prediction</strong></span>
+          </div>
+        </div>
+      </div>
+      <div class="verdict-right-col">
+        <div class="verdict-stat-grid">
+          <div class="vsg-item">
+            <div class="vsg-val">{{ data.best_accuracy }}%</div>
+            <div class="vsg-label">Top Accuracy</div>
+          </div>
+          <div class="vsg-item">
+            <div class="vsg-val">5</div>
+            <div class="vsg-label">Models Run</div>
+          </div>
+          <div class="vsg-item">
+            <div class="vsg-val">{{ data.delayed_votes }}/5</div>
+            <div class="vsg-label">Delayed Votes</div>
+          </div>
+          <div class="vsg-item">
+            <div class="vsg-val">{{ data.ontime_votes }}/5</div>
+            <div class="vsg-label">On Time Votes</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       ACTION BUTTONS
+  ════════════════════════════════════════════ -->
+  <div class="res-actions">
+    <a href="/" class="res-btn res-btn-ghost">
+      <i class="fas fa-redo"></i> Predict Again
+    </a>
+    <a href="/" class="res-btn res-btn-outline">
+      <i class="fas fa-arrow-left"></i> Back to Form
+    </a>
+    <a href="/dashboard" class="res-btn res-btn-primary">
+      <i class="fas fa-chart-bar"></i> View Dashboard
+    </a>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  // Animate all progress bars
+  document.querySelectorAll("[data-width]").forEach(bar => {
+    const target = bar.getAttribute("data-width");
+    bar.style.width = "0%";
+    setTimeout(() => {
+      bar.style.transition = "width 1s cubic-bezier(0.4,0,0.2,1)";
+      bar.style.width = target + "%";
+    }, 200);
+  });
+
+  // Animate vote meter bars
+  document.querySelectorAll(".vm-bar-fill").forEach(bar => {
+    const w = bar.style.width;
+    bar.style.width = "0%";
+    setTimeout(() => {
+      bar.style.transition = "width 1.2s cubic-bezier(0.4,0,0.2,1)";
+      bar.style.width = w;
+    }, 300);
+  });
+
+  // Stagger model card entrance
+  document.querySelectorAll(".mc").forEach((card, i) => {
+    card.style.opacity = "0";
+    card.style.transform = "translateY(24px)";
+    setTimeout(() => {
+      card.style.transition = "opacity 0.5s ease, transform 0.5s ease";
+      card.style.opacity = "1";
+      card.style.transform = "translateY(0)";
+    }, 100 + i * 100);
+  });
+
+  // Animate comparison table rows
+  document.querySelectorAll(".cmp-table tbody tr").forEach((row, i) => {
+    row.style.opacity = "0";
+    setTimeout(() => {
+      row.style.transition = "opacity 0.4s ease";
+      row.style.opacity = "1";
+    }, 600 + i * 80);
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,230 @@
+name: CI — Flight Delay Prediction
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # JOB 1 — Code Quality & Syntax Check
+  # ─────────────────────────────────────────────────────────────
+  lint:
+    name: Lint & Syntax Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install flake8
+
+      - name: Lint with flake8
+        run: |
+          # Stop build on syntax errors or undefined names
+          flake8 backend/app.py backend/database/database.py \
+            --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Warn on style issues (non-blocking)
+          flake8 backend/app.py backend/database/database.py \
+            --count --max-line-length=120 --statistics --exit-zero
+
+      - name: Check Python syntax on all files
+        run: |
+          python -m py_compile backend/app.py
+          python -m py_compile backend/database/database.py
+          python -m py_compile backend/model/train_model.py
+          echo "All Python files passed syntax check."
+
+  # ─────────────────────────────────────────────────────────────
+  # JOB 2 — Model & Data Validation
+  # ─────────────────────────────────────────────────────────────
+  validate-models:
+    name: Validate ML Models & Dataset
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Validate accuracies.json structure
+        run: |
+          python - <<'EOF'
+          import json, sys
+          with open("backend/model/accuracies.json") as f:
+              data = json.load(f)
+          required_keys = ["accuracies", "precision", "recall", "f1_score", "cv_scores", "best_model"]
+          for key in required_keys:
+              assert key in data, f"Missing key in accuracies.json: {key}"
+          models = ["KNN", "Naive Bayes", "SVM", "Logistic Regression", "Random Forest"]
+          for m in models:
+              assert m in data["accuracies"], f"Missing model in accuracies: {m}"
+          assert data["best_model"] in models, f"best_model invalid: {data['best_model']}"
+          print(f"accuracies.json OK — Best model: {data['best_model']}")
+          print(f"Accuracies: { {k: f'{v*100:.1f}%' for k,v in data['accuracies'].items()} }")
+          EOF
+
+      - name: Validate all_models.pkl loads correctly
+        run: |
+          python - <<'EOF'
+          import joblib, sys
+          bundle = joblib.load("backend/model/all_models.pkl")
+          assert "models" in bundle, "Bundle missing 'models' key"
+          expected = ["KNN", "Naive Bayes", "SVM", "Logistic Regression", "Random Forest"]
+          loaded   = list(bundle["models"].keys())
+          for m in expected:
+              assert m in loaded, f"Model missing from pkl: {m}"
+          print(f"all_models.pkl OK — Models: {loaded}")
+          EOF
+
+      - name: Validate dataset CSV
+        run: |
+          python - <<'EOF'
+          import pandas as pd
+          df = pd.read_csv("backend/dataset/flight_dataset.csv")
+          required_cols = ["Airline","Source","Destination","Distance",
+                           "Departure_Time","Weather_Condition","Delay_Status"]
+          for col in required_cols:
+              assert col in df.columns, f"Missing column: {col}"
+          assert len(df) >= 1000, f"Dataset too small: {len(df)} rows"
+          assert df.isnull().sum().sum() == 0, "Dataset has null values"
+          valid_labels = {"Delayed", "On Time"}
+          actual = set(df["Delay_Status"].unique())
+          assert actual == valid_labels, f"Unexpected labels: {actual}"
+          print(f"Dataset OK — {len(df)} rows, columns: {list(df.columns)}")
+          print(f"Label distribution: {df['Delay_Status'].value_counts().to_dict()}")
+          EOF
+
+      - name: Run end-to-end prediction test
+        run: |
+          python - <<'EOF'
+          import sys, os
+          sys.path.insert(0, "backend")
+          import joblib, pandas as pd, json
+
+          bundle = joblib.load("backend/model/all_models.pkl")
+          with open("backend/model/accuracies.json") as f:
+              acc = json.load(f)
+
+          test_input = pd.DataFrame([{
+              "Airline": "IndiGo", "Source": "Chennai", "Destination": "Delhi",
+              "Distance": 1760.0, "Departure_Time": "Evening",
+              "Weather_Condition": "Storm"
+          }])
+
+          results = {}
+          for name, pipeline in bundle["models"].items():
+              pred = pipeline.predict(test_input)[0]
+              label = "Delayed" if pred == 1 else "On Time"
+              results[name] = label
+              print(f"  {name}: {label}")
+
+          assert len(results) == 5, f"Expected 5 predictions, got {len(results)}"
+          print(f"End-to-end prediction test PASSED — all 5 models responded.")
+          EOF
+
+  # ─────────────────────────────────────────────────────────────
+  # JOB 3 — Flask App & Route Tests
+  # ─────────────────────────────────────────────────────────────
+  test:
+    name: Flask App Tests
+    runs-on: ubuntu-latest
+    needs: validate-models
+
+    env:
+      SECRET_KEY: ci-test-secret-key-github-actions
+      DATABASE_URL: ""          # Empty → SQLite fallback used in CI
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run pytest test suite
+        run: |
+          cd backend
+          python -m pytest tests/ -v --tb=short \
+            --cov=. --cov-report=term-missing \
+            --cov-report=xml:coverage.xml
+        env:
+          SECRET_KEY: ci-test-secret-key-github-actions
+          DATABASE_URL: ""
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: backend/coverage.xml
+
+  # ─────────────────────────────────────────────────────────────
+  # JOB 4 — Build Summary
+  # ─────────────────────────────────────────────────────────────
+  ci-summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [ lint, validate-models, test ]
+    if: always()
+
+    steps:
+      - name: Print CI result
+        run: |
+          echo "========================================"
+          echo "  Flight Delay Prediction — CI Summary"
+          echo "========================================"
+          echo "  Lint:             ${{ needs.lint.result }}"
+          echo "  Model Validation: ${{ needs.validate-models.result }}"
+          echo "  Flask Tests:      ${{ needs.test.result }}"
+          echo "========================================"
+
+      - name: Fail if any job failed
+        if: |
+          needs.lint.result == 'failure' ||
+          needs.validate-models.result == 'failure' ||
+          needs.test.result == 'failure'
+        run: |
+          echo "CI FAILED — check job logs above."
+          exit 1
+
+      - name: CI passed
+        if: |
+          needs.lint.result == 'success' &&
+          needs.validate-models.result == 'success' &&
+          needs.test.result == 'success'
+        run: echo "All CI checks passed. Ready for deployment."

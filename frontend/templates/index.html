@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Predict Flight Delay{% endblock %}
+
+{% block content %}
+<div class="page-hero">
+  <div class="hero-content">
+    <div class="hero-icon"><i class="fas fa-plane-departure"></i></div>
+    <h1>Flight Delay Prediction</h1>
+    <p>Powered by Ensemble Machine Learning &mdash; All 5 models predict simultaneously</p>
+  </div>
+</div>
+
+<div class="container">
+  {% if error %}
+  <div class="alert alert-error">
+    <i class="fas fa-exclamation-circle"></i> {{ error }}
+  </div>
+  {% endif %}
+
+  <div class="form-card">
+    <div class="form-card-header">
+      <h2><i class="fas fa-sliders-h"></i> Enter Flight Details</h2>
+      <p>Fill in the details below to predict whether your flight will be delayed.</p>
+    </div>
+
+    <form action="/predict" method="POST" id="predictForm">
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="airline"><i class="fas fa-building"></i> Airline</label>
+          <select name="airline" id="airline" required>
+            <option value="" disabled selected>Select Airline</option>
+            {% for a in airlines %}
+            <option value="{{ a }}">{{ a }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="source"><i class="fas fa-map-marker-alt"></i> Source City</label>
+          <select name="source" id="source" required>
+            <option value="" disabled selected>Select Source</option>
+            {% for c in cities %}
+            <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="destination"><i class="fas fa-map-pin"></i> Destination City</label>
+          <select name="destination" id="destination" required>
+            <option value="" disabled selected>Select Destination</option>
+            {% for c in cities %}
+            <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="distance"><i class="fas fa-ruler-horizontal"></i> Distance (km)</label>
+          <input type="number" name="distance" id="distance" min="100" max="5000"
+                 placeholder="e.g. 1200" required />
+        </div>
+
+        <div class="form-group">
+          <label for="departure_time"><i class="fas fa-clock"></i> Departure Time</label>
+          <select name="departure_time" id="departure_time" required>
+            <option value="" disabled selected>Select Time Slot</option>
+            {% for t in departure_times %}
+            <option value="{{ t }}">{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="weather_condition"><i class="fas fa-cloud-sun"></i> Weather Condition</label>
+          <select name="weather_condition" id="weather_condition" required>
+            <option value="" disabled selected>Select Weather</option>
+            {% for w in weather_conditions %}
+            <option value="{{ w }}">{{ w }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-predict" id="submitBtn">
+          <i class="fas fa-brain"></i>
+          <span>Run All 5 Models</span>
+          <div class="btn-loader hidden"><i class="fas fa-spinner fa-spin"></i></div>
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <div class="info-cards">
+    <div class="info-card">
+      <i class="fas fa-robot"></i>
+      <h3>5 ML Models</h3>
+    <p>KNN, Naive Bayes, SVM, Logistic Regression &amp; Random Forest run together</p>
+    </div>
+    <div class="info-card">
+      <i class="fas fa-database"></i>
+      <h3>Supabase Backed</h3>
+      <p>All predictions stored securely in PostgreSQL</p>
+    </div>
+    <div class="info-card">
+      <i class="fas fa-chart-line"></i>
+      <h3>High Accuracy</h3>
+      <p>Ensemble approach for reliable delay predictions</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
