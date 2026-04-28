@@ -15,7 +15,6 @@ app = Flask(
     static_folder=os.path.join(os.path.dirname(__file__), "..", "frontend", "static"),
 )
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "fallback-secret-key")
-app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
 init_db(app)
 
 # ── ML bundle ────────────────────────────────────────────────────────────────
@@ -138,17 +137,21 @@ def predict():
             departure_time, weather_condition
         )
 
-        # Save final prediction (best model) to DB
-        best = data["best_model"]
-        db.session.add(PredictionHistory(
-            airline=airline, source=source, destination=destination,
-            distance=distance, departure_time=departure_time,
-            weather_condition=weather_condition,
-            model_used=best,
-            prediction=data["final_prediction"],
-            confidence=data["results"][best]["confidence"],
-        ))
-        db.session.commit()
+        # Save final prediction to DB (optional - don't crash if it fails)
+        try:
+            best = data["best_model"]
+            db.session.add(PredictionHistory(
+                airline=airline, source=source, destination=destination,
+                distance=distance, departure_time=departure_time,
+                weather_condition=weather_condition,
+                model_used=best,
+                prediction=data["final_prediction"],
+                confidence=data["results"][best]["confidence"],
+            ))
+            db.session.commit()
+        except Exception as db_err:
+            db.session.rollback()
+            print(f"[WARN] Could not save prediction to database: {db_err}")
 
         return render_template(
             "result.html",

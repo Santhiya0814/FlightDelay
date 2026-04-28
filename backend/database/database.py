@@ -44,8 +44,9 @@ def fix_db_url(url: str) -> str:
     if "." not in username:
         username = f"{username}.{PROJECT_ID}"
 
-    # 5. URL-encode password (specifically handles '@' -> '%40')
-    quoted_password = quote(password, safe='')
+    # 5. URL-encode password — decode first to avoid double-encoding
+    from urllib.parse import unquote
+    quoted_password = quote(unquote(password), safe='')
 
     # 6. Rebuild netloc (username:password@host:port)
     netloc = f"{username}:{quoted_password}@{hostname}:{port}"
@@ -68,34 +69,59 @@ def init_db(app):
     sqlite_path = os.path.join(os.path.dirname(__file__), "..", "flightdelay.db")
     sqlite_uri  = f"sqlite:///{os.path.abspath(sqlite_path)}"
 
+    db_uri = sqlite_uri
+    use_supabase = False
+
     if raw_url and "[YOUR-PASSWORD]" not in raw_url:
-        db_uri = fix_db_url(raw_url)
-        print(f"[INFO] Connecting to Supabase PostgreSQL...")
-    else:
-        db_uri = sqlite_uri
-        print("[INFO] Using SQLite fallback database.")
+        candidate_uri = fix_db_url(raw_url)
+        print(f"[INFO] Testing Supabase connection...")
+        
+        # Test connection with a temporary engine before committing to it
+        from sqlalchemy import create_engine, text
+        try:
+            import threading
+            result = {"success": False, "error": None}
+
+            def _test():
+                try:
+                    test_engine = create_engine(candidate_uri, connect_args={"connect_timeout": 5})
+                    with test_engine.connect() as conn:
+                        conn.execute(text("SELECT 1"))
+                    test_engine.dispose()
+                    result["success"] = True
+                except Exception as e:
+                    result["error"] = e
+
+            t = threading.Thread(target=_test, daemon=True)
+            t.start()
+            t.join(timeout=8)
+
+            if result["success"]:
+                db_uri = candidate_uri
+                use_supabase = True
+                print("[INFO] Supabase connection successful.")
+            else:
+                err = result["error"] or "Connection timed out"
+                print(f"[WARN] Supabase connection failed: {err}")
+                print("[INFO] Falling back to SQLite for this session.")
+        except Exception as e:
+            print(f"[WARN] Supabase connection failed: {e}")
+            print("[INFO] Falling back to SQLite for this session.")
 
     app.config["SQLALCHEMY_DATABASE_URI"]        = db_uri
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SQLALCHEMY_ENGINE_OPTIONS"]      = {
-        "pool_pre_ping":    True,   # test connection before using from pool
-        "pool_recycle":     300,    # recycle connections every 5 min
+        "pool_pre_ping": True,
+        "pool_recycle":  300,
     }
 
     db.init_app(app)
 
     with app.app_context():
-        try:
-            db.create_all()
-            print("[INFO] Database tables ready.")
-        except Exception as e:
-            print(f"[WARN] Supabase connection failed: {e}")
-            print("[INFO] Falling back to SQLite.")
-            app.config["SQLALCHEMY_DATABASE_URI"] = sqlite_uri
-            app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {}
-            db.engine.dispose()
-            with app.app_context():
-                db.create_all()
+        db.create_all()
+        if use_supabase:
+            print("[INFO] PostgreSQL database tables ready.")
+        else:
             print("[INFO] SQLite database tables ready.")
 
 
