@@ -1,5 +1,7 @@
 import os
+import re
 from datetime import datetime
+from urllib.parse import urlparse, urlunparse, quote
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 
@@ -7,19 +9,80 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 db = SQLAlchemy()
 
+PROJECT_ID = "warkcxvejmsbepabxlnp"
+
+
+def fix_db_url(url: str) -> str:
+    """
+    Sanitise a Supabase DATABASE_URL for SQLAlchemy 2.0 + psycopg2.
+
+    Fixes applied:
+      1. postgres:// -> postgresql://   (SQLAlchemy 2.0 compatibility)
+      2. Encode password special characters (like @) using quote()
+      3. Username suffix postgres.<PROJECT_ID> (Required for Supabase pooler)
+      4. Strip all query parameters (pgbouncer=true causes DSN errors)
+    """
+    if not url:
+        return url
+
+    # 1. Protocol fix
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+
+    # 2. Parse URL
+    # urlparse handles multiple @ by taking the last one as the host separator
+    parsed = urlparse(url)
+
+    # 3. Extract components
+    username = parsed.username or "postgres"
+    password = parsed.password or ""
+    hostname = parsed.hostname or ""
+    port     = parsed.port or 6543 # Default to Supabase pooler port
+    path     = parsed.path
+
+    # 4. Fix username suffix if missing
+    if "." not in username:
+        username = f"{username}.{PROJECT_ID}"
+
+    # 5. URL-encode password (specifically handles '@' -> '%40')
+    quoted_password = quote(password, safe='')
+
+    # 6. Rebuild netloc (username:password@host:port)
+    netloc = f"{username}:{quoted_password}@{hostname}:{port}"
+
+    # 7. Rebuild final URL without query strings
+    clean_url = urlunparse((
+        "postgresql",
+        netloc,
+        path,
+        "", # params
+        "", # query (strips ?pgbouncer=true)
+        ""  # fragment
+    ))
+
+    return clean_url
+
 
 def init_db(app):
-    db_url = os.getenv("DATABASE_URL", "")
+    raw_url    = os.getenv("DATABASE_URL", "")
     sqlite_path = os.path.join(os.path.dirname(__file__), "..", "flightdelay.db")
     sqlite_uri  = f"sqlite:///{os.path.abspath(sqlite_path)}"
 
-    if db_url and "[YOUR-PASSWORD]" not in db_url:
-        app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+    if raw_url and "[YOUR-PASSWORD]" not in raw_url:
+        db_uri = fix_db_url(raw_url)
+        print(f"[INFO] Connecting to Supabase PostgreSQL...")
     else:
-        app.config["SQLALCHEMY_DATABASE_URI"] = sqlite_uri
+        db_uri = sqlite_uri
         print("[INFO] Using SQLite fallback database.")
 
+    app.config["SQLALCHEMY_DATABASE_URI"]        = db_uri
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"]      = {
+        "pool_pre_ping":    True,   # test connection before using from pool
+        "pool_recycle":     300,    # recycle connections every 5 min
+        "connect_args":     {"connect_timeout": 10},
+    }
+
     db.init_app(app)
 
     with app.app_context():
@@ -30,18 +93,17 @@ def init_db(app):
             print(f"[WARN] Supabase connection failed: {e}")
             print("[INFO] Falling back to SQLite.")
             app.config["SQLALCHEMY_DATABASE_URI"] = sqlite_uri
-            # Re-init with SQLite
+            app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {}
             db.engine.dispose()
-            from sqlalchemy import create_engine
-            app.config["SQLALCHEMY_DATABASE_URI"] = sqlite_uri
             with app.app_context():
                 db.create_all()
+            print("[INFO] SQLite database tables ready.")
 
 
 class PredictionHistory(db.Model):
     __tablename__ = "prediction_history"
 
-    id                = db.Column(db.Integer, primary_key=True)
+    id                = db.Column(db.Integer,     primary_key=True)
     airline           = db.Column(db.String(100), nullable=False)
     source            = db.Column(db.String(100), nullable=False)
     destination       = db.Column(db.String(100), nullable=False)
