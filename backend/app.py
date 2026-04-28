@@ -189,7 +189,16 @@ def dashboard():
     )
 
 if __name__ == "__main__":
-    # Render kudukura port-ai dynamic-ah edukanum
+    # App start aagurathuku munnadi Database connection-ai check pannuvom
+    try:
+        print("[INFO] Initializing Database...")
+        with app.app_context():
+            init_db(app)
+        print("[INFO] Database Initialized Successfully.")
+    except Exception as e:
+        print(f"[ERROR] Database initialization failed: {e}")
+        # Database fail aanaalum app run aagum (Render port scan pass aagurathukaaga)
+
     port = int(os.environ.get("PORT", 8080))
-    # Production-la debug=False nu irukanum
+    # host='0.0.0.0' is mandatory for Render
     app.run(host='0.0.0.0', port=port, debug=False)
