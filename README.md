@@ -298,7 +298,3 @@ GitHub Actions will automatically run CI → then deploy to Render.
 - Developer gets notified by email
 
 ---
-
-## License
-
-This project is developed as a Final Year Project submission.
