@@ -80,7 +80,6 @@ def init_db(app):
     app.config["SQLALCHEMY_ENGINE_OPTIONS"]      = {
         "pool_pre_ping":    True,   # test connection before using from pool
         "pool_recycle":     300,    # recycle connections every 5 min
-        "connect_args":     {"connect_timeout": 10},
     }
 
     db.init_app(app)
